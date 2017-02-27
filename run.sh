@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# create vorlonjs network
+docker network create -d overlay --attachable vorlonjs
+
 # pull the goVorlonjs API image
 docker pull vorlonjs/govorlonjs:0.5.4
 
