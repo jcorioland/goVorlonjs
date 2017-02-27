@@ -37,4 +37,4 @@ docker service create --name govorlonjs \
     --label com.df.distribute=true \
     --label com.df.servicePath=/govorlonjs \
     --label com.df.port=82 \
-    govorlonjs
+    vorlonjs/govorlonjs:0.5.4
