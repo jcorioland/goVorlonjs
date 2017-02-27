@@ -1,35 +1,48 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
 )
 
+var vorlonjsImageTag = "vorlonjs/dashboard:0.5.4"
+
 func main() {
-	http.HandleFunc("/govorlonjs/api/createVorlonContainer", CreateVorlonContainer)
+	// get image version from environment variable
+	imageVersion := os.Getenv("VORLONJS_DOCKER_IMAGE_VERSION")
+	if len(strings.TrimSpace(imageVersion)) > 0 {
+		vorlonjsImageTag = imageVersion
+	}
+
+	// handle the create vorlon service action
+	http.HandleFunc("/govorlonjs/api/create", CreateVorlonInstance)
+
+	// handle the remove vorlon service action
+	http.HandleFunc("/govorlonjs/api/remove", RemoveVorlonInstance)
+
+	// start the http server
+	log.Printf("The Vorlon.js API has started on the port %d", 82)
 	log.Fatal(http.ListenAndServe(":82", nil))
 }
 
-// CreateVorlonContainer creates a new service that runs a Vorlonjs Docker container on a Swarm cluster
-func CreateVorlonContainer(w http.ResponseWriter, r *http.Request) {
-	var imageTag = "vorlonjs/dashboard:0.5.4"
+// CreateVorlonInstance creates a new service that runs a Vorlonjs Docker container on a Swarm cluster
+func CreateVorlonInstance(w http.ResponseWriter, r *http.Request) {
 	var vorlonjsPort = uint32(1337)
 	var serviceName = r.URL.Query().Get("serviceName")
+
+	// if the service name has not been specified
 	if len(strings.TrimSpace(serviceName)) == 0 {
+		// return HTTP 400 -> BAD REQUEST
+		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(w, "Service name cannot be empty")
 		return
 	}
 
+	// generate a random port
 	var randomPort = uint32(random(5000, 10000))
 	log.Printf("New random port has been generated: %d\r\n", randomPort)
 
@@ -44,67 +57,41 @@ func CreateVorlonContainer(w http.ResponseWriter, r *http.Request) {
 		"BASE_URL=/" + serviceName,
 	}
 
-	result := createDockerService(imageTag, serviceName, vorlonjsPort, randomPort, "vorlonjs", env, labels)
+	result, err := createDockerService(vorlonjsImageTag, serviceName, vorlonjsPort, randomPort, "vorlonjs", env, labels)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Println("Something went wrong with your request: " + err.Error())
+		return
+	}
+
 	log.Printf("New Vorlonjs container has been created: ID = %s\r\n", result.ID)
 
+	// return HTTP 201 -> CREATED
+	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "Vorlonjs is running at /"+serviceName)
 }
 
-// createDockerService creates a new Docker service in the Swarm cluster
-func createDockerService(imageTag string, serviceName string, targetPort uint32, publishedPort uint32, networkName string, environmentVariables []string, labels map[string]string) types.ServiceCreateResponse {
-	cli, err := client.NewEnvClient()
+// RemoveVorlonInstance removes a Vorlonjs service that is running in the Swarm cluster
+func RemoveVorlonInstance(w http.ResponseWriter, r *http.Request) {
+	var serviceName = r.URL.Query().Get("serviceName")
+
+	// if the service name has not been specified
+	if len(strings.TrimSpace(serviceName)) == 0 {
+		// return HTTP 400 -> BAD REQUEST
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Service name cannot be empty")
+		return
+	}
+
+	// remove the service
+	err := removeDockerService(serviceName)
 	if err != nil {
-		panic(err)
+		// return HTTP 400 -> BAD REQUEST
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Something went wrong with your request: "+err.Error())
+		return
 	}
 
-	var serviceSpec = swarm.ServiceSpec{
-		Annotations: swarm.Annotations{
-			Name:   serviceName,
-			Labels: labels,
-		},
-		TaskTemplate: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
-				Image: imageTag,
-				Env:   environmentVariables,
-			},
-		},
-		EndpointSpec: &swarm.EndpointSpec{
-			Ports: []swarm.PortConfig{
-				swarm.PortConfig{
-					PublishedPort: publishedPort,
-					TargetPort:    targetPort,
-					Protocol:      swarm.PortConfigProtocolTCP,
-					PublishMode:   swarm.PortConfigPublishModeIngress,
-				},
-			},
-		},
-		Networks: []swarm.NetworkAttachmentConfig{
-			swarm.NetworkAttachmentConfig{
-				Target: networkName,
-			},
-		},
-	}
-
-	result, err := cli.ServiceCreate(context.Background(), serviceSpec, types.ServiceCreateOptions{})
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return result
-}
-
-// random generates a random number between two range
-func random(min, max int) int {
-	rand.Seed(time.Now().Unix())
-	return rand.Intn(max-min) + min
-}
-
-// pullDockerImage pulls an image using its tag
-func pullDockerImage(imageTag string) {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	cli.ImagePull(context.Background(), imageTag, types.ImagePullOptions{})
+	// return HTTP 200 -> OK
+	w.WriteHeader(http.StatusOK)
 }
