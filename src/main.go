@@ -47,7 +47,7 @@ func CreateVorlonContainer(w http.ResponseWriter, r *http.Request) {
 	result := createDockerService(imageTag, serviceName, vorlonjsPort, randomPort, "vorlonjs", env, labels)
 	log.Printf("New Vorlonjs container has been created: ID = %s\r\n", result.ID)
 
-	fmt.Fprintf(w, "Vorlonjs is running at http://localhost:%d", randomPort)
+	fmt.Fprintf(w, "Vorlonjs is running at /"+serviceName)
 }
 
 // createDockerService creates a new Docker service in the Swarm cluster
