@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"html"
 	"log"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,19 +16,13 @@ import (
 )
 
 func main() {
-	http.HandleFunc("/", HandleHome)
-	http.HandleFunc("/createVorlonContainer", CreateVorlonContainer)
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-// HandleHome handles the root route of the applicaiton
-func HandleHome(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
+	http.HandleFunc("/govorlonjs/api/createVorlonContainer", CreateVorlonContainer)
+	log.Fatal(http.ListenAndServe(":82", nil))
 }
 
 // CreateVorlonContainer creates a new service that runs a Vorlonjs Docker container on a Swarm cluster
 func CreateVorlonContainer(w http.ResponseWriter, r *http.Request) {
-	var imageTag = "vorlonjs/dashboard:0.3.0"
+	var imageTag = "vorlonjs/dashboard:0.5.4"
 	var vorlonjsPort = uint32(1337)
 	var serviceName = r.URL.Query().Get("serviceName")
 	if len(strings.TrimSpace(serviceName)) == 0 {
@@ -39,14 +33,25 @@ func CreateVorlonContainer(w http.ResponseWriter, r *http.Request) {
 	var randomPort = uint32(random(5000, 10000))
 	log.Printf("New random port has been generated: %d\r\n", randomPort)
 
-	result := createDockerService(imageTag, serviceName, vorlonjsPort, randomPort, "vorlonjs")
+	labels := map[string]string{
+		"com.df.notify":      "true",
+		"com.df.distribute":  "true",
+		"com.df.servicePath": "/" + serviceName,
+		"com.df.port":        strconv.Itoa(int(vorlonjsPort)),
+	}
+
+	env := []string{
+		"BASE_URL=/" + serviceName,
+	}
+
+	result := createDockerService(imageTag, serviceName, vorlonjsPort, randomPort, "vorlonjs", env, labels)
 	log.Printf("New Vorlonjs container has been created: ID = %s\r\n", result.ID)
 
 	fmt.Fprintf(w, "Vorlonjs is running at http://localhost:%d", randomPort)
 }
 
 // createDockerService creates a new Docker service in the Swarm cluster
-func createDockerService(imageTag string, serviceName string, targetPort uint32, publishedPort uint32, networkName string) types.ServiceCreateResponse {
+func createDockerService(imageTag string, serviceName string, targetPort uint32, publishedPort uint32, networkName string, environmentVariables []string, labels map[string]string) types.ServiceCreateResponse {
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		panic(err)
@@ -54,11 +59,13 @@ func createDockerService(imageTag string, serviceName string, targetPort uint32,
 
 	var serviceSpec = swarm.ServiceSpec{
 		Annotations: swarm.Annotations{
-			Name: serviceName,
+			Name:   serviceName,
+			Labels: labels,
 		},
 		TaskTemplate: swarm.TaskSpec{
 			ContainerSpec: swarm.ContainerSpec{
 				Image: imageTag,
+				Env:   environmentVariables,
 			},
 		},
 		EndpointSpec: &swarm.EndpointSpec{

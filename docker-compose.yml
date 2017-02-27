@@ -1,0 +1,44 @@
+version: '3'
+networks:
+  vorlonjs:
+    driver: overlay
+services:
+  swarm-listener:
+    image: vfarcic/docker-flow-swarm-listener:latest
+    networks:
+      - vorlonjs
+    environment:
+      DF_NOTIFY_CREATE_SERVICE_URL: http://proxy:8080/v1/docker-flow-proxy/reconfigure
+      DF_NOTIFY_REMOVE_SERVICE_URL: http://proxy:8080/v1/docker-flow-proxy/remove
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+  proxy:
+    image: vfarcic/docker-flow-proxy:latest
+    networks:
+      - vorlonjs
+    environment: 
+      MODE: swarm
+      LISTENER_ADDRESS: swarm-listener
+    ports:
+      - "80:80"
+      - "443:443"
+    deploy:
+      mode: replicated
+      replicas: 1
+  govorlonjs:
+    image: vorlonjs/govorlonjs:0.5.4
+    networks:
+      - vorlonjs
+    ports: 
+      - "82:82"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      mode: replicated
+      replicas: 1
