@@ -13,7 +13,6 @@ func createDockerService(
 	imageTag string,
 	serviceName string,
 	targetPort uint32,
-	publishedPort uint32,
 	networkName string,
 	environmentVariables []string,
 	labels map[string]string) (types.ServiceCreateResponse, error) {

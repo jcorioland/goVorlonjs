@@ -33,6 +33,6 @@ docker service create --name govorlonjs `
     --mount "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock" `
     --label com.df.notify=true `
     --label com.df.distribute=true `
-    --label com.df.servicePath=/govorlonjs `
+    --label com.df.servicePath=/api `
     --label com.df.port=82 `
     vorlonjs/govorlonjs:0.5.4

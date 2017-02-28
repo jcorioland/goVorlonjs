@@ -17,4 +17,4 @@ COPY *.go /go/src/govorlonjs/
 
 WORKDIR /go/src/govorlonjs
 RUN go get
-RUN go build main.go utils.go dockercli.go
+RUN go build main.go utils.go dockercli.go models.go
