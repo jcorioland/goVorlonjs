@@ -13,8 +13,8 @@ RUN tar -C /usr/local -xzf go1.7.5.linux-amd64.tar.gz
 ENV PATH=$PATH:/usr/local/go/bin 
 ENV GOPATH=/go
 
-COPY main.go /go/src/govorlonjs/main.go
+COPY *.go /go/src/govorlonjs/
 
 WORKDIR /go/src/govorlonjs
 RUN go get
-RUN go build main.go
+RUN go build main.go utils.go dockercli.go models.go

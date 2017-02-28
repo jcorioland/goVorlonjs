@@ -1,110 +1,121 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/swarm"
-	"github.com/docker/docker/client"
 )
 
+var vorlonjsImageTag = "vorlonjs/dashboard:0.5.4"
+
 func main() {
-	http.HandleFunc("/govorlonjs/api/createVorlonContainer", CreateVorlonContainer)
+	// get image version from environment variable
+	imageVersion := os.Getenv("VORLONJS_DOCKER_IMAGE_VERSION")
+	if len(strings.TrimSpace(imageVersion)) > 0 {
+		vorlonjsImageTag = imageVersion
+	}
+
+	// handle the create vorlon service action
+	http.HandleFunc("/api/instance/create", CreateVorlonInstance)
+
+	// handle the remove vorlon service action
+	http.HandleFunc("/api/instance/remove", RemoveVorlonInstance)
+
+	// start the http server
+	log.Printf("The Vorlon.js API has started on the port %d", 82)
 	log.Fatal(http.ListenAndServe(":82", nil))
 }
 
-// CreateVorlonContainer creates a new service that runs a Vorlonjs Docker container on a Swarm cluster
-func CreateVorlonContainer(w http.ResponseWriter, r *http.Request) {
-	var imageTag = "vorlonjs/dashboard:0.5.4"
+// CreateVorlonInstance creates a new service that runs a Vorlonjs Docker container on a Swarm cluster
+func CreateVorlonInstance(w http.ResponseWriter, r *http.Request) {
+	if strings.ToUpper(r.Method) != "POST" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Usage: POST /api/instance/create {\"serviceName\": \"SERVICE_NAME\"}")
+		return
+	}
+
+	// create a JSON decoder to parse the request body
+	decoder := json.NewDecoder(r.Body)
+	var requestBody VorlonInstanceRequestBody
+	err := decoder.Decode(&requestBody)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Something went wrong with your request: "+err.Error())
+		return
+	}
+
 	var vorlonjsPort = uint32(1337)
-	var serviceName = r.URL.Query().Get("serviceName")
-	if len(strings.TrimSpace(serviceName)) == 0 {
+	var networkName = "vorlonjs"
+
+	// if the service name has not been specified
+	if len(strings.TrimSpace(requestBody.ServiceName)) == 0 {
+		// return HTTP 400 -> BAD REQUEST
+		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(w, "Service name cannot be empty")
 		return
 	}
 
-	var randomPort = uint32(random(5000, 10000))
-	log.Printf("New random port has been generated: %d\r\n", randomPort)
-
 	labels := map[string]string{
 		"com.df.notify":      "true",
 		"com.df.distribute":  "true",
-		"com.df.servicePath": "/" + serviceName,
+		"com.df.servicePath": "/" + requestBody.ServiceName,
 		"com.df.port":        strconv.Itoa(int(vorlonjsPort)),
 	}
 
 	env := []string{
-		"BASE_URL=/" + serviceName,
+		"BASE_URL=/" + requestBody.ServiceName,
 	}
 
-	result := createDockerService(imageTag, serviceName, vorlonjsPort, randomPort, "vorlonjs", env, labels)
+	result, err := createDockerService(vorlonjsImageTag, requestBody.ServiceName, vorlonjsPort, networkName, env, labels)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Something went wrong with your request: "+err.Error())
+		return
+	}
+
+	// return HTTP 201 -> CREATED
+	w.WriteHeader(http.StatusCreated)
+	fmt.Fprintln(w, "Vorlonjs is running at /"+requestBody.ServiceName)
+
 	log.Printf("New Vorlonjs container has been created: ID = %s\r\n", result.ID)
-
-	fmt.Fprintf(w, "Vorlonjs is running at /"+serviceName)
 }
 
-// createDockerService creates a new Docker service in the Swarm cluster
-func createDockerService(imageTag string, serviceName string, targetPort uint32, publishedPort uint32, networkName string, environmentVariables []string, labels map[string]string) types.ServiceCreateResponse {
-	cli, err := client.NewEnvClient()
+// RemoveVorlonInstance removes a Vorlonjs service that is running in the Swarm cluster
+func RemoveVorlonInstance(w http.ResponseWriter, r *http.Request) {
+	if strings.ToUpper(r.Method) != "POST" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Usage: POST /api/instance/remove {\"serviceName\": \"SERVICE_NAME\"}")
+		return
+	}
+
+	// create a JSON decoder to parse the request body
+	decoder := json.NewDecoder(r.Body)
+	var requestBody VorlonInstanceRequestBody
+	err := decoder.Decode(&requestBody)
+
+	// if the service name has not been specified
+	if len(strings.TrimSpace(requestBody.ServiceName)) == 0 {
+		// return HTTP 400 -> BAD REQUEST
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Service name cannot be empty")
+		return
+	}
+
+	// remove the service
+	err = removeDockerService(requestBody.ServiceName)
 	if err != nil {
-		panic(err)
+		// return HTTP 400 -> BAD REQUEST
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Something went wrong with your request: "+err.Error())
+		return
 	}
 
-	var serviceSpec = swarm.ServiceSpec{
-		Annotations: swarm.Annotations{
-			Name:   serviceName,
-			Labels: labels,
-		},
-		TaskTemplate: swarm.TaskSpec{
-			ContainerSpec: swarm.ContainerSpec{
-				Image: imageTag,
-				Env:   environmentVariables,
-			},
-		},
-		EndpointSpec: &swarm.EndpointSpec{
-			Ports: []swarm.PortConfig{
-				swarm.PortConfig{
-					PublishedPort: publishedPort,
-					TargetPort:    targetPort,
-					Protocol:      swarm.PortConfigProtocolTCP,
-					PublishMode:   swarm.PortConfigPublishModeIngress,
-				},
-			},
-		},
-		Networks: []swarm.NetworkAttachmentConfig{
-			swarm.NetworkAttachmentConfig{
-				Target: networkName,
-			},
-		},
-	}
-
-	result, err := cli.ServiceCreate(context.Background(), serviceSpec, types.ServiceCreateOptions{})
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	return result
-}
-
-// random generates a random number between two range
-func random(min, max int) int {
-	rand.Seed(time.Now().Unix())
-	return rand.Intn(max-min) + min
-}
-
-// pullDockerImage pulls an image using its tag
-func pullDockerImage(imageTag string) {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	cli.ImagePull(context.Background(), imageTag, types.ImagePullOptions{})
+	// return HTTP 200 -> OK
+	w.WriteHeader(http.StatusOK)
+	log.Printf("The Vorlonjs instance %s has been removed\r\n", requestBody.ServiceName)
 }
