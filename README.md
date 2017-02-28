@@ -11,7 +11,7 @@ Simple go REST APIs to create [Vorlonjs](https://github.com/microsoftdx/vorlonjs
 .\scripts\run.ps1
 ```
 
-### On Linux (need Docker installed)
+#### On Linux (need Docker installed)
 
 ```
 ./run.sh
