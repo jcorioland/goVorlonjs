@@ -11,8 +11,26 @@ import (
 )
 
 var vorlonjsImageTag = "vorlonjs/dashboard:0.5.4"
+var apiKey = ""
+var apiSecret = ""
 
 func main() {
+	// get API_KEY and API_SECRET from environment variables
+	apiKey = os.Getenv("VORLONJS_API_KEY")
+	apiSecret = os.Getenv("VORLONJS_API_SECRET")
+
+	// check api key is in environment variables
+	if len(strings.TrimSpace(apiKey)) == 0 {
+		log.Fatalln("The VORLONJS_API_KEY is not set")
+		return
+	}
+
+	// check api secret is in environment variables
+	if len(strings.TrimSpace(apiSecret)) == 0 {
+		log.Fatalln("The VORLONJS_API_SECRET is not set")
+		return
+	}
+
 	// get image version from environment variable
 	imageVersion := os.Getenv("VORLONJS_DOCKER_IMAGE_VERSION")
 	if len(strings.TrimSpace(imageVersion)) > 0 {
@@ -30,8 +48,23 @@ func main() {
 	log.Fatal(http.ListenAndServe(":82", nil))
 }
 
+func isAuthorizedRequest(r *http.Request) bool {
+	authorizationHeader := r.Header.Get("Authorization")
+	expectedAuthorizationHeader := computeSHA256Hash(apiKey, apiSecret)
+
+	return (authorizationHeader != expectedAuthorizationHeader)
+}
+
 // CreateVorlonInstance creates a new service that runs a Vorlonjs Docker container on a Swarm cluster
 func CreateVorlonInstance(w http.ResponseWriter, r *http.Request) {
+
+	// check authorized request
+	if !isAuthorizedRequest(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintln(w, "Unauthorized")
+		return
+	}
+
 	if strings.ToUpper(r.Method) != "POST" {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(w, "Usage: POST /api/instance/create {\"serviceName\": \"SERVICE_NAME\"}")
@@ -87,6 +120,14 @@ func CreateVorlonInstance(w http.ResponseWriter, r *http.Request) {
 
 // RemoveVorlonInstance removes a Vorlonjs service that is running in the Swarm cluster
 func RemoveVorlonInstance(w http.ResponseWriter, r *http.Request) {
+
+	// check authorized request
+	if !isAuthorizedRequest(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintln(w, "Unauthorized")
+		return
+	}
+
 	if strings.ToUpper(r.Method) != "POST" {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintln(w, "Usage: POST /api/instance/remove {\"serviceName\": \"SERVICE_NAME\"}")
