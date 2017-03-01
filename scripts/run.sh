@@ -16,7 +16,8 @@ docker pull vfarcic/docker-flow-proxy:1.200
 docker pull vorlonjs/dashboard:0.5.4
 
 # create the swarm listener
-docker service create --name swarm-listener --network vorlonjs \
+docker service create --name swarm-listener \
+    --network vorlonjs \
     --mount "type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock" \
     -e DF_NOTIFY_CREATE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/reconfigure \
     -e DF_NOTIFY_REMOVE_SERVICE_URL=http://proxy:8080/v1/docker-flow-proxy/remove \
@@ -24,7 +25,8 @@ docker service create --name swarm-listener --network vorlonjs \
     vfarcic/docker-flow-swarm-listener:1.13
 
 # create the proxy
-docker service create --name proxy -p 80:80 -p 443:443 --network vorlonjs \
+docker service create --name proxy -p 80:80 -p 443:443 \
+    --network vorlonjs \
     -e MODE=swarm \
     -e LISTENER_ADDRESS=swarm-listener \
     vfarcic/docker-flow-proxy:1.200
