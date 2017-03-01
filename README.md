@@ -1,5 +1,5 @@
 # goVorlonjs
-Simple go REST APIs to create [Vorlonjs](https://github.com/microsoftdx/vorlonjs) instances on demand
+Simple golang REST APIs to create [Vorlonjs](https://github.com/microsoftdx/vorlonjs) instances on demand
 
 ## How to
 
