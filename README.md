@@ -5,16 +5,22 @@ Simple go REST APIs to create [Vorlonjs](https://github.com/microsoftdx/vorlonjs
 
 ### Run the API
 
-#### On Windows (need Docker for Windows)
+#### On Windows
 
 ```
 .\scripts\run.ps1
 ```
 
-#### On Linux (need Docker installed)
+#### On Linux
 
 ```
-./run.sh
+./scripts/run.sh
+```
+
+#### Use Docker Compose
+
+```
+docker stack deploy govorlonjs -c docker-compose.yml
 ```
 
 ### Use the API
@@ -60,4 +66,46 @@ Content-Type: application/json
 
 ```
 HTTP 200 Ok
+```
+
+#### Check if a Vorlonjs instance exists
+
+*Request*
+
+```
+POST /api/instance/exists HTTP/1.1
+Host: REPLACE_WITH_YOUR_HOST
+Content-Type: application/json
+
+{
+    "serviceName":"vorlonjs1"
+}
+```
+
+*Response*
+
+If the instance exists
+
+```
+HTTP 200 Ok
+```
+
+If the instance does not exists
+
+```
+HTTP 404 Not Found
+```
+
+### Clean everything
+
+#### On Windows
+
+```
+.\scripts\clean.ps1
+```
+
+#### On Linux
+
+```
+./scripts/clean.sh
 ```
