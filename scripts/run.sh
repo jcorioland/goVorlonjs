@@ -4,7 +4,7 @@
 docker network create -d overlay --attachable vorlonjs
 
 # pull the goVorlonjs API image
-docker pull vorlonjs/govorlonjs:0.5.4
+docker pull vorlonjs/govorlonjs:0.5.4-dev
 
 # pull the swarm listener
 docker pull vfarcic/docker-flow-swarm-listener:1.13
@@ -39,4 +39,6 @@ docker service create --name govorlonjs \
     --label com.df.distribute=true \
     --label com.df.servicePath=/api \
     --label com.df.port=82 \
-    vorlonjs/govorlonjs:0.5.4
+    -e VORLONJS_API_KEY=YOUR_API_KEY \
+    -e VORLONJS_API_SECRET=YOUR_API_SECRET \
+    vorlonjs/govorlonjs:0.5.4-dev

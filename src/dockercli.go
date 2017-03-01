@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
 )
@@ -64,6 +65,23 @@ func removeDockerService(nameOrIdentifier string) error {
 
 	rmError := cli.ServiceRemove(context.Background(), nameOrIdentifier)
 	return rmError
+}
+
+func isServiceRunning(serviceName string) bool {
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		panic(err)
+	}
+
+	serviceNameFilter := filters.NewArgs()
+	serviceNameFilter.Add("name", serviceName)
+
+	services, err := cli.ServiceList(context.Background(), types.ServiceListOptions{Filters: serviceNameFilter})
+	if err != nil {
+		panic(err)
+	}
+
+	return len(services) != 0
 }
 
 // pullDockerImage pulls an image using its tag

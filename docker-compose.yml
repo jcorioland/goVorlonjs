@@ -4,7 +4,7 @@ networks:
     driver: overlay
 services:
   swarm-listener:
-    image: vfarcic/docker-flow-swarm-listener:latest
+    image: vfarcic/docker-flow-swarm-listener:1.13
     networks:
       - vorlonjs
     environment:
@@ -19,7 +19,7 @@ services:
         constraints:
           - node.role == manager
   proxy:
-    image: vfarcic/docker-flow-proxy:latest
+    image: vfarcic/docker-flow-proxy:1.200
     networks:
       - vorlonjs
     environment: 
@@ -32,9 +32,12 @@ services:
       mode: replicated
       replicas: 1
   govorlonjs:
-    image: vorlonjs/govorlonjs:0.5.4
+    image: vorlonjs/govorlonjs:0.5.4-dev
     networks:
       - vorlonjs
+    environment: 
+      VORLONJS_API_KEY: "YOUR_API_KEY"
+      VORLONJS_API_SECRET: "YOUR_API_SECRET"
     ports: 
       - "82:82"
     volumes:
@@ -42,3 +45,8 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      labels:
+        com.df.notify: true
+        com.df.distribute: true
+        com.df.servicePath: "/api"
+        com.df.port: 82

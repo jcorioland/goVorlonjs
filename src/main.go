@@ -43,6 +43,9 @@ func main() {
 	// handle the remove vorlon service action
 	http.HandleFunc("/api/instance/remove", RemoveVorlonInstance)
 
+	// handle the exists vorlon service action
+	http.HandleFunc("/api/instance/exsists", VorlonInstanceExists)
+
 	// start the http server
 	log.Printf("The Vorlon.js API has started on the port %d", 82)
 	log.Fatal(http.ListenAndServe(":82", nil))
@@ -139,6 +142,12 @@ func RemoveVorlonInstance(w http.ResponseWriter, r *http.Request) {
 	var requestBody VorlonInstanceRequestBody
 	err := decoder.Decode(&requestBody)
 
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Something went wrong with your request: "+err.Error())
+		return
+	}
+
 	// if the service name has not been specified
 	if len(strings.TrimSpace(requestBody.ServiceName)) == 0 {
 		// return HTTP 400 -> BAD REQUEST
@@ -159,4 +168,49 @@ func RemoveVorlonInstance(w http.ResponseWriter, r *http.Request) {
 	// return HTTP 200 -> OK
 	w.WriteHeader(http.StatusOK)
 	log.Printf("The Vorlonjs instance %s has been removed\r\n", requestBody.ServiceName)
+}
+
+// VorlonInstanceExists checks if a given Vorlonjs instance exists
+func VorlonInstanceExists(w http.ResponseWriter, r *http.Request) {
+	// check authorized request
+	if !isAuthorizedRequest(r) {
+		w.WriteHeader(http.StatusUnauthorized)
+		fmt.Fprintln(w, "Unauthorized")
+		return
+	}
+
+	if strings.ToUpper(r.Method) != "POST" {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Usage: POST /api/instance/remove {\"serviceName\": \"SERVICE_NAME\"}")
+		return
+	}
+
+	// create a JSON decoder to parse the request body
+	decoder := json.NewDecoder(r.Body)
+	var requestBody VorlonInstanceRequestBody
+	err := decoder.Decode(&requestBody)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Something went wrong with your request: "+err.Error())
+		return
+	}
+
+	// if the service name has not been specified
+	if len(strings.TrimSpace(requestBody.ServiceName)) == 0 {
+		// return HTTP 400 -> BAD REQUEST
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, "Service name cannot be empty")
+		return
+	}
+
+	instanceExists := isServiceRunning(requestBody.ServiceName)
+
+	if !instanceExists {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintln(w, "Service does not exist")
+	} else {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Service exists")
+	}
 }
